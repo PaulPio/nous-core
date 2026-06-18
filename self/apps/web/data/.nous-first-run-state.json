@@ -1,0 +1,28 @@
+{
+  "currentStep": "complete",
+  "complete": true,
+  "steps": {
+    "agent_identity": {
+      "status": "complete",
+      "completedAt": "2026-06-17T23:59:03.936Z"
+    },
+    "ollama_check": {
+      "status": "complete",
+      "completedAt": "2026-06-17T23:59:03.936Z"
+    },
+    "model_download": {
+      "status": "complete",
+      "completedAt": "2026-06-17T23:59:03.936Z"
+    },
+    "provider_config": {
+      "status": "complete",
+      "completedAt": "2026-06-17T23:59:03.936Z"
+    },
+    "role_assignment": {
+      "status": "complete",
+      "completedAt": "2026-06-17T23:59:03.936Z"
+    }
+  },
+  "completedAt": "2026-06-17T23:59:03.936Z",
+  "lastUpdatedAt": "2026-06-17T23:59:03.936Z"
+}
