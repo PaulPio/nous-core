@@ -97,7 +97,7 @@ Using UMPIRE framework (adapted):
 
 4. Test: Create src/__tests__/openrouter-provider.test.ts to verify endpoint construction, streaming/parsing, error mapping (401/429), and registry integration.
 
-**Implement:** Branch (Feature/OpenRouterModelProvider)
+**Implement:** Branch (Feature/OpenRouterModelProvider) https://github.com/PaulPio/nous-core/tree/Feature/OpenRouterModelProvider 
 Task: Follow the directory structure: self/subcortex/providers/src/providers/openrouter/
 
 **Review:** 
