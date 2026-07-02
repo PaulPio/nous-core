@@ -64,6 +64,8 @@ yarn-error.log*
 !/AGENTS.md
 !/LICENSE
 !/LICENSE.md
+!/contribution_readme.md
+
 
 # Local recovery script — not part of SP 1.17 scope
 scripts/recover-worklog.mjs
