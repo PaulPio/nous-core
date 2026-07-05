@@ -1,215 +1,288 @@
-# OpenRouter Model Provider
+# Contribution 2: Adapter: Alibaba Qwen / DashScope Model Provider
+
+**Contribution Number:** 2  
+**Student:** Paul Piotrowski  
+**Issue:** https://github.com/orthogonalhq/nous-core/issues/315  
+**Fork:** https://github.com/PaulPio/nous-core  
+**Status:** Phase I — In Progress  
+**Prior contribution:** [#306 OpenRouter provider](https://github.com/orthogonalhq/nous-core/issues/306) → [PR #410 merged 2026-06-30](https://github.com/orthogonalhq/nous-core/pull/410)
+
+---
+
+## Why I Chose This Issue
+
+This is my **second provider-leaf contribution** to Nous. For contribution 1 I implemented and merged the OpenRouter provider ([#306](https://github.com/orthogonalhq/nous-core/issues/306), [PR #410](https://github.com/orthogonalhq/nous-core/pull/410)) on `feat/contributor-friendly-inference-provider-surface` — including the fail-closed factory, `healthCheckEndpoint` for key validation, and a shared-server model-discovery compatibility fix. Maintainer `@atlamors` unblocked that work by refactoring the adapter surface after I claimed the issue ([comment thread, 2026-06-07](https://github.com/orthogonalhq/nous-core/issues/306#issuecomment-4644415563)); the merged leaf is now live at `self/subcortex/providers/src/providers/openrouter/`. Issue [#315](https://github.com/orthogonalhq/nous-core/issues/315) is the natural follow-on: same `adapter` / `good first issue` shape, same OpenAI-compatible protocol, same integration branch — but a different vendor with its own endpoint and auth quirks.
+
+Nous already supports local Qwen through Ollama (e.g. `ollama:qwen2.5:7b`), but there is no first-class path to Alibaba Cloud's **DashScope** API — hosted Qwen for teams that want managed inference without running weights locally. DashScope closes a real product gap (direct Qwen cloud access vs. routing through an aggregator like OpenRouter), and I already have the repo context: pnpm monorepo tooling, `ProviderDefinitionLeaf` + `generate:providers`, aggregate test rosters, and the maintainer review loop from #410.
+
+**Skill match:** I have already shipped one certified leaf end-to-end in this codebase. DashScope reuses the same `ChatCompletionsProvider` primitive maintainer `@atlamors` described on both issues — metadata + factory, not a new adapter class. My primary template is **my own OpenRouter leaf**, with Groq as the minimal baseline.
+
+**Learning goals for contribution 2:** (1) apply the leaf pattern to a second vendor, validating the workflow is repeatable; (2) handle DashScope-specific complexity OpenRouter did not have — multi-region compatible-mode bases (`dashscope.aliyuncs.com` vs `dashscope-intl.aliyuncs.com`), possible `/v1/models` gaps on some hosts, and choosing `healthCheckEndpoint` vs model-list for key proof; (3) deliver a tighter Phase I plan and issue comment up front, using lessons from the #306 thread where I waited on the maintainer refactor before starting. I chose this over unrelated bug fixes because it extends a capability area I have already proven in review and merge.
+
+---
+
+## Understanding the Issue
+
+### Problem Description
+
+Nous's subcortex provider registry has certified leaves for Anthropic, OpenAI, Groq, OpenRouter, Ollama, and others under `self/subcortex/providers/src/providers/`, but **no leaf for Alibaba DashScope (Qwen cloud)**. Users with a `DASHSCOPE_API_KEY` cannot add DashScope in Settings → API Keys, cannot pick Qwen cloud models in the model picker, and cannot route agent turns through hosted Qwen inference. The issue is labeled `good first issue` / `adapter` and explicitly scopes work to the current provider leaf contract (not the superseded `IModelProvider` monolith path).
+
+DashScope exposes an [OpenAI-compatible Chat Completions API](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) at paths like `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions` (international) or `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` (China), authenticated with `Authorization: Bearer $DASHSCOPE_API_KEY`. That means inference reuses Nous's existing `ChatCompletionsProvider` in `self/subcortex/providers/src/protocols/openai-api/` — the leaf only supplies vendor metadata, auth, endpoints, and a safe factory.
+
+### Expected Behavior
+
+After the provider leaf lands (target branch: `feat/contributor-friendly-inference-provider-surface` per maintainer update 2026-06-18):
+
+1. **DashScope / Qwen** appears in Settings → API Keys without custom UI code (registry-driven from the leaf definition).
+2. Users store a `DASHSCOPE_API_KEY`; bootstrap injects it into `process.env` per `auth.envVar`.
+3. The model picker discovers Qwen models via `modelListEndpoint` + `modelListFormat: 'openai-models'`, or falls back to a sensible `defaultModelId` (e.g. `qwen-plus`) if listing is unavailable for a given endpoint variant.
+4. Agent turns stream completions from DashScope through the shared chat-completions protocol.
+5. `pnpm --filter @nous/subcortex-providers run check:generated` passes; provider unit and aggregate tests include the new vendor roster entry.
+6. Built-in provider ID is **derived from `vendorKey`** — no hand-authored `wellKnownProviderId`.
+
+### Current Behavior
+
+Today, attempting to use hosted Qwen requires manual workarounds (custom OpenAI base URL hacks or unrelated aggregators). The provider codegen roster under `self/subcortex/providers/src/providers/` has no `dashscope/` (or `qwen/`) directory, so generated catalogs in `provider-definitions.ts`, `provider-factories.ts`, and `provider-adapters.ts` omit the vendor entirely. Local Qwen via Ollama works, but that is a different protocol (`ollama`) and does not accept DashScope API keys.
+
+### Affected Components
+
+| Area | Path | Role |
+|------|------|------|
+| **New provider leaf** | `self/subcortex/providers/src/providers/dashscope/` | `definition.ts`, `adapter.ts`, `provider.ts`, `index.ts` |
+| **Shared OpenAI protocol** | `self/subcortex/providers/src/protocols/openai-api/` | `ChatCompletionsProvider` + `chatCompletionsAdapter` (reuse, not fork) |
+| **Codegen output** | `provider-definitions.ts`, `provider-factories.ts`, `provider-adapters.ts` | Regenerated via `generate:providers` — never hand-edited |
+| **Provider identity** | `self/subcortex/providers/src/provider-identity.ts` | Derives built-in ID from `vendorKey` |
+| **Model discovery** | `self/apps/shared-server/src/provider-model-discovery.ts` | Parses `/v1/models` responses (`openai-models` format); may need DashScope-shaped test if fields differ |
+| **Key validation** | Same file — `testProviderApiKey()` | Uses `healthCheckEndpoint ?? modelListEndpoint`; must confirm DashScope auth behavior |
+| **Reference leaves** | `providers/openrouter/` _(my merged #410 work)_, `providers/groq/` | OpenRouter = primary template (fail-closed factory, `healthCheckEndpoint`, discovery tests); Groq = minimal baseline |
+| **Aggregate tests** | `self/subcortex/providers/src/__tests__/providers/*.test.ts`, `provider-definitions.test.ts`, `provider-pipeline-integration.test.ts`, etc. | Roster updates when adding a vendor |
+
+**Maintainer guidance (issue comments):**
+
+- [@atlamors, 2026-04-16](https://github.com/orthogonalhq/nous-core/issues/315#issuecomment-4262815139): DashScope is OpenAI-compatible; ship as config on `ChatCompletionsProvider`. Watch for hard-coded `OPENAI_API_KEY` fallback (#324 / #413) — use fail-closed leaf factory until shared cleanup lands.
+- [@atlamors, 2026-06-12](https://github.com/orthogonalhq/nous-core/issues/315#issuecomment-4686350451): Implement certified leaf; do not hand-edit catalogs; confirm integration branch before PR; reuse `protocols/openai-api` where API is actually compatible.
+- **Issue body (2026-06-18):** Integration target is `feat/contributor-friendly-inference-provider-surface`; docs at [provider adapter quickstart](https://docs.nue.orthg.nl/docs/development/provider-adapters/quickstart).
+
+**Concrete acceptance criteria (“done” looks like):**
+
+- [ ] `dashscope` leaf passes `ProviderDefinitionSchema` hydration (no manual UUID).
+- [ ] `DASHSCOPE_API_KEY` is the sole credential source at the factory boundary (no `OPENAI_API_KEY` fallback).
+- [ ] Default endpoint targets international compatible-mode (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`) unless research shows a better single default; document regional overrides.
+- [ ] Capabilities declare only verified features (`streaming`, `modelListing`); omit `nativeToolUse` until #390.
+- [ ] Leaf unit test + updated aggregate roster tests; `check:generated` clean.
+- [ ] Manual smoke: provider visible in API Keys, valid key connects, model picker shows catalog or default model, chat completion succeeds.
+
+---
+
+## Reproduction Process
+
+### Environment Setup
+
+**Goal for Phase I:** Confirm the *absence* of DashScope as a provider. Local dev is already proven from contribution 1 (OpenRouter #410): fork, `pnpm install`, integration branch, and `pnpm dev:web` were all exercised during that cycle.
+
+| Step | Command / action | Notes |
+|------|------------------|-------|
+| Fork (done) | https://github.com/PaulPio/nous-core | Created for #306; still active |
+| Sync integration branch | `git fetch upstream && git checkout feat/contributor-friendly-inference-provider-surface && git pull upstream feat/contributor-friendly-inference-provider-surface` | Same target branch as #306/#410; pull to pick up merged OpenRouter leaf |
+| Verify baseline | `pnpm typecheck && pnpm lint && pnpm test && pnpm build` | Re-run after sync; flag pre-existing breaks without scope-creeping |
+| Dev UI | `pnpm dev:web` (port 4317) | Settings → API Keys — OpenRouter **is** listed (from #410); DashScope is **not** |
+
+**Challenges anticipated:**
+
+- **Regional endpoints:** DashScope uses different base URLs for China (`dashscope.aliyuncs.com`) vs international (`dashscope-intl.aliyuncs.com`) and newer workspace-scoped URLs (`{WorkspaceId}.{region}.maas.aliyuncs.com`). The leaf `defaultEndpoint` must pick a documented default; users in other regions may override endpoint in config.
+- **`/v1/models` availability:** Some DashScope routes (e.g. Coding Plan hosts) return 404 on `/v1/models` while `/v1/chat/completions` still works ([hermes-agent#12220](https://github.com/NousResearch/hermes-agent/issues/12220)). Plan: verify against compatible-mode endpoint; if listing fails, rely on `defaultModelId` and document limitation; add `healthCheckEndpoint` if model list is public (OpenRouter pattern).
+- **`OPENAI_API_KEY` leak:** Shared `ChatCompletionsProvider` can fall back to OpenAI's env var — I fixed this at the OpenRouter leaf boundary in #410; DashScope must use the same fail-closed factory pattern I already shipped.
+
+### Steps to Reproduce (missing provider)
+
+1. Check out `feat/contributor-friendly-inference-provider-surface` and run `pnpm dev:web`.
+2. Open Settings → API Keys → provider dropdown.
+3. **Observed:** Groq, **OpenRouter** (my #410 contribution), OpenAI, Anthropic, etc. appear; **DashScope / Qwen cloud does not**.
+4. Search codebase: `ls self/subcortex/providers/src/providers/` — **no `dashscope/` directory**.
+5. Optional external control: with a valid `DASHSCOPE_API_KEY`, `curl` against `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions` succeeds — proving the API works but Nous has no leaf to route to it.
+
+### Reproduction Evidence
+
+- **Issue link:** [#315](https://github.com/orthogonalhq/nous-core/issues/315) — open, unassigned, no linked PR.
+- **My comment on issue:** [2026-07-05](https://github.com/orthogonalhq/nous-core/issues/315#issuecomment-4887810460) — introduced interest; awaiting maintainer confirmation of target branch.
+- **Codebase evidence:** Provider roster ends at `openrouter/`, `groq/`, `anthropic/`, etc.; grep for `dashscope` in `self/subcortex/providers/` returns no provider leaf.
+- **Commit showing reproduction:** _(Phase II — will link first commit on `feat/dashscope-provider-leaf` that adds a failing roster test or documents absence.)_
+- **My findings:** This is a *missing capability*, not a runtime regression. Reproduction is "provider absent from registry + Settings UI." Implementation is additive leaf work aligned with maintainer docs and Groq/OpenRouter precedents.
+
+---
 
 ## Solution Approach
 
 ### Analysis
-Nous lacked a selectable OpenRouter provider. OpenRouter is an OpenAI Chat Completions-compatible aggregator (500+ models, Bearer auth), so it is implemented by reusing the existing `ChatCompletionsProvider` — no changes to core interfaces.
+
+**Root cause:** The provider registry is leaf-driven. Each vendor is a directory under `src/providers/<vendor>/` discovered by codegen. DashScope was never added, so catalogs, factories, Settings, and model discovery have no entry for it.
+
+**Why ChatCompletionsProvider fits:** Maintainer confirmed DashScope's compatible-mode API matches OpenAI Chat Completions (`POST .../v1/chat/completions`, Bearer auth, streaming). No new protocol class is required — only metadata and a safe factory.
+
+**Risk areas:**
+
+1. **Credential isolation** — must fail closed at `provider.ts` (OpenRouter pattern).
+2. **Endpoint / model-list quirks** — validate `/v1/models` on compatible-mode; separate key-validation endpoint if catalog is public.
+3. **Capability honesty** — do not set `nativeToolUse: true` until #390 bridge exists.
 
 ### Proposed Solution
-Add a certified provider **leaf** under `self/subcortex/providers/src/providers/openrouter/`, mirroring the merged **Groq** leaf (the canonical OpenAI-compatible cloud reference). The maintainer's registry-driven refactor on the integration branch means the leaf alone surfaces OpenRouter in API-key settings and auto-discovers its full model catalog — no app/server/UI code.
 
-### Implementation Plan (UMPIRE)
+Add a certified **DashScope provider leaf** at `self/subcortex/providers/src/providers/dashscope/` mirroring **my merged OpenRouter leaf** (`providers/openrouter/`) for structure, auth safety, and test coverage — with Groq as the minimal fallback if DashScope needs fewer fields. The leaf declares:
 
-**Understand:** Nous had no OpenRouter provider. OpenAI-compatible → reuse `ChatCompletionsProvider` (`src/protocols/openai-api/`) without touching `IModelProvider` or `TextModelInputSchema`.
+- `vendorKey: 'dashscope'`, `displayName: 'DashScope (Qwen)'`
+- `protocol: 'chat-completions'`, `adapterKey: 'chat-completions'`
+- `defaultEndpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'` (international default; document China alternate)
+- `defaultModelId: 'qwen-plus'` (widely documented starter model)
+- `auth.envVar: 'DASHSCOPE_API_KEY'`, Bearer header, vault namespace `dashscope`
+- `modelListEndpoint: '/v1/models'`, `modelListFormat: 'openai-models'`
+- `healthCheckEndpoint`: TBD after manual probe — add if `/v1/models` does not prove credentials
+- Fail-closed `providerFactory.create()` resolving only `DASHSCOPE_API_KEY`
 
-**Match:** Reuse `ChatCompletionsProvider`; mirror the leaf structure of `providers/groq/` (OpenAI-compatible cloud reference) and `providers/openai/`; register via the `generate:providers` codegen script; rely on the registry-driven `provider-model-discovery.ts` for model listing.
+Then run `pnpm --filter @nous/subcortex-providers run generate:providers` and extend test rosters.
+
+### Implementation Plan
+
+Using UMPIRE framework (adapted):
+
+**Understand:** Nous lacks a DashScope/Qwen cloud provider. DashScope offers OpenAI-compatible chat completions; users need API-key settings, model selection, and inference routing without custom UI.
+
+**Match:**
+
+- **OpenRouter leaf** (`providers/openrouter/`) — **my #410 implementation**; primary template for fail-closed factory, `healthCheckEndpoint`, unit + aggregate tests, and optional `provider-model-discovery.ts` fix if DashScope's `/v1/models` shape diverges.
+- **Groq leaf** (`providers/groq/`) — minimal OpenAI-compatible cloud metadata when DashScope needs no extra endpoints.
+- **Prior review feedback from #410** — fail-closed credentials, separate key validation from public model catalogs, no process docs in repo.
+- **Provider skill** (`.cursor/skills/nous-provider-leaf/`) — checklist distilled from contribution 1 + maintainer merge.
 
 **Plan:**
-1. Create `src/providers/openrouter/` — `definition.ts` (`OPENROUTER_PROVIDER_DEFINITION`, `vendorKey: 'openrouter'`, **no hand-authored UUID** — derived from `vendorKey`), `adapter.ts` (re-export `chatCompletionsAdapter`), `provider.ts` (factory → `ChatCompletionsProvider`), `index.ts` (barrel).
-2. Run `pnpm --filter @nous/subcortex-providers run generate:providers` to regenerate catalogs.
-3. Add `src/__tests__/providers/openrouter.test.ts`; update the existing aggregate tests for the new vendor.
-4. Verify: `check:generated`, tests, typecheck, lint, build.
 
-**Implement:** Branch `feat/openrouter-provider-leaf`, based on the integration branch `feat/contributor-friendly-inference-provider-surface` (PR target per maintainer). Directory: `self/subcortex/providers/src/providers/openrouter/`.
+1. Branch `feat/dashscope-provider-leaf` from `upstream/feat/contributor-friendly-inference-provider-surface`.
+2. Create `providers/dashscope/{definition,adapter,provider,index}.ts`.
+3. Run `generate:providers`; verify `check:generated`.
+4. Add `__tests__/providers/dashscope.test.ts` (metadata, schema hydration, factory auth, no `OPENAI_API_KEY` fallback).
+5. Update aggregate tests: `provider-definitions.test.ts`, `provider-definition-types.test.ts`, `provider-pipeline-integration.test.ts`, `provider-codegen.test.ts`, `adapter-resolver.test.ts`, `provider-registry.test.ts`.
+6. If DashScope `/v1/models` response shape differs, minimal fix in `provider-model-discovery.ts` + shared-server test (OpenRouter precedent).
+7. Manual smoke with real `DASHSCOPE_API_KEY` on `pnpm dev:web`.
+8. Open PR targeting `feat/contributor-friendly-inference-provider-surface`.
+
+**Implement:** _(Phase II — link branch and commits here.)_
 
 **Review:**
-- [x] `definition.ts` does **not** hand-author `wellKnownProviderId` — built-in IDs derive from `vendorKey` via `provider-identity.ts` (corrects the original draft).
-- [x] `generate:providers` added the vendor to `provider-factories.ts`, `provider-definitions.ts`, and `provider-adapters.ts`.
-- [x] Core interfaces untouched (`IModelProvider`, `TextModelInputSchema`); no `@nous/shared` edits.
 
-**Evaluate:** `check:generated` (in sync), provider tests, shared-server discovery/preferences tests, typecheck, lint, build — all green (see Testing Strategy).
+- [ ] No hand-authored `wellKnownProviderId`
+- [ ] Generated catalogs not manually edited
+- [ ] No `@nous/shared` interface changes
+- [ ] No unrelated fixes bundled
+- [ ] `contribution_readme.md` stays local (not committed)
+
+**Evaluate:** Full gate — `generate:providers`, `check:generated`, `pnpm typecheck`, `pnpm lint`, `pnpm test self/subcortex/providers`, optional `pnpm test provider-model-discovery`, `pnpm build`, manual Settings smoke.
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests (`src/__tests__/providers/openrouter.test.ts`)
-- [x] Definition metadata correct: `vendorKey`/`displayName`/`protocol:'chat-completions'`/`adapterKey:'chat-completions'`/`defaultEndpoint:'https://openrouter.ai/api'`/`defaultModelId:'openrouter/auto'`/`auth.envVar:'OPENROUTER_API_KEY'`/`auth.header:{name:'Authorization',scheme:'bearer'}`/`modelListEndpoint:'/v1/models'`/`modelListFormat:'openai-models'`.
-- [x] `healthCheckEndpoint:'/v1/key'` for authenticated key validation (post-review).
-- [x] Capabilities advertise `streaming` + `modelListing`; `nativeToolUse` intentionally absent (pending #390 tool-use bridge).
-- [x] No hand-authored `wellKnownProviderId`; hydrated definition passes `ProviderDefinitionSchema`.
-- [x] Factory builds a `ChatCompletionsProvider` for vendor `openrouter` (config id via `deriveBuiltInProviderId('openrouter')`).
-- [x] Factory throws when no OpenRouter key is available (post-review).
-- [x] Factory does **not** fall back to `OPENAI_API_KEY` when `OPENROUTER_API_KEY` is missing (post-review).
+### Unit Tests
 
-### Integration Tests (existing aggregate suites, updated for the new vendor)
-- [x] `provider-codegen.test.ts` — leaf discovered; generated catalogs in sync.
-- [x] `provider-definitions.test.ts` — `PROVIDER_DEFINITIONS` includes `openrouter` with correct endpoint/model/envVar.
-- [x] `provider-definition-types.test.ts` — `ProviderVendorKey`/`BootstrapProviderKey` unions include `openrouter`.
-- [x] `provider-pipeline-integration.test.ts` — registry constructs OpenRouter as `ChatCompletionsProvider` from definition + `OPENROUTER_API_KEY`.
-- [x] `adapter-resolver.test.ts` — `ADAPTER_MODULES` aggregation (also fixed a pre-existing staleness; see Notes).
-- [x] `provider-registry.test.ts` — OpenRouter endpoint routing uses `OPENROUTER_API_KEY`, not `OPENAI_API_KEY` (post-review).
-- [x] Shared-server `provider-model-discovery` — OpenRouter-shaped model list parsing + `testProviderApiKey` against `/v1/key` (post-review).
-- [x] Shared-server `preferences-router` tests stay green — generic/definition-driven; OpenRouter needs no per-vendor UI code.
+- [ ] **Definition metadata:** `vendorKey`, `displayName`, `protocol`, `defaultEndpoint`, `defaultModelId`, `DASHSCOPE_API_KEY`, Bearer auth, model list fields.
+- [ ] **Schema hydration:** hydrated definition passes `ProviderDefinitionSchema`; no manual `wellKnownProviderId`.
+- [ ] **Capabilities:** `streaming` + `modelListing` present; `nativeToolUse` absent.
+- [ ] **Factory:** builds `ChatCompletionsProvider` with `deriveBuiltInProviderId('dashscope')`.
+- [ ] **Auth fail-closed:** throws `NousError` / `PROVIDER_AUTH_FAILED` when key missing.
+- [ ] **Regression:** factory does **not** use `OPENAI_API_KEY` when `DASHSCOPE_API_KEY` unset.
 
-Results (final iteration): provider package **331 passed / 2 skipped**; shared-server discovery **8 passed** (incl. key-validation cases).
+### Integration Tests
 
-### Manual Testing (`pnpm dev:web`, port 4317)
-- [x] OpenRouter appears in Settings → API Keys provider dropdown (leaf registration confirmed).
-- [x] API key stored and the integration connects.
-- [x] **Model picker lists OpenRouter's full catalog** after a small fix to an over-strict shared discovery parser (see "Model discovery fix" below). Before the fix it fell back to only `openrouter/auto`, which auto-routes to a GPT model.
-- [x] Invalid OpenRouter keys fail Settings validation after `/v1/key` health-check endpoint was added (post-review).
+- [ ] `provider-codegen.test.ts` — leaf discovered; generated files in sync.
+- [ ] `provider-definitions.test.ts` — roster includes `dashscope`.
+- [ ] `provider-pipeline-integration.test.ts` — registry constructs `ChatCompletionsProvider` with `DASHSCOPE_API_KEY`.
+- [ ] `provider-registry.test.ts` — routing uses DashScope env var, not OpenAI.
+- [ ] _(If needed)_ `provider-model-discovery.test.ts` — DashScope-shaped `/v1/models` parse + key validation.
+
+### Manual Testing
+
+- [ ] DashScope appears in Settings → API Keys dropdown.
+- [ ] Invalid key fails validation (once `healthCheckEndpoint` confirmed).
+- [ ] Valid key stores and connects.
+- [ ] Model picker lists Qwen models (or shows `qwen-plus` default).
+- [ ] Send a chat turn; receive streamed Qwen response.
 
 ---
 
 ## Implementation Notes
 
-### Progress
-1. **Initial PR:** Implemented the OpenRouter leaf mirroring the merged Groq leaf; regenerated catalogs; added/updated tests; model-discovery compatibility fix; full local verification green.
-2. **Review iteration:** Addressed maintainer's three PR-local change requests (fail-closed factory, `/v1/key` validation, untrack scratch notes).
-3. **Outcome:** PR #410 **merged** into `feat/contributor-friendly-inference-provider-surface` on 2026-06-30 by maintainer `@atlamors`.
+### Week 1 Progress (Phase I)
 
-### Key decisions & challenges
-- **Targeted the integration branch.** Per maintainer guidance the PR targets `feat/contributor-friendly-inference-provider-surface`, which carries the new provider surface (`ProviderDefinitionLeaf`, IDs derived from `vendorKey`, registry-driven model discovery). Worked on a fresh `feat/openrouter-provider-leaf` cut from that tip.
-- **No hand-authored UUID / no manual `index.ts` export** (corrects the original draft): IDs derive from `vendorKey`; the definition is surfaced transitively via the regenerated `provider-definitions.ts` (same as Groq).
-- **Mostly leaf-driven:** the maintainer's discovery refactor (`provider-model-discovery.ts` + generic `preferences.ts` + dynamic `ApiKeysPage.tsx`) surfaces OpenRouter's API-key entry automatically from the definition's `auth.header` + `modelListEndpoint` + `modelListFormat`.
-- **Model discovery fix (the one non-leaf change):** the shared `openai-models` parser required per-item `object`/`owned_by` and a top-level `object` that OpenRouter's `/v1/models` omits, so discovery fell back to only `openrouter/auto`. Made those three fields `.optional()` in `provider-model-discovery.ts` (OpenAI still validates; OpenRouter now lists its full catalog) and added an OpenRouter-shaped discovery test. Confirmed first-hand via `pnpm dev:web`. Maintainer appreciated this as a real compatibility improvement.
-- **Fail-closed factory (review round 2):** `ChatCompletionsProvider` still falls back to `OPENAI_API_KEY` internally when `options.apiKey` is undefined. The OpenRouter factory now resolves only `OPENROUTER_API_KEY` (or an explicit option) and throws before delegating — a PR-local workaround until shared protocol cleanup (#413).
-- **Key validation vs model listing (review round 2):** OpenRouter's `/v1/models` is public (200 even without auth). Added `healthCheckEndpoint: '/v1/key'` so Settings key testing hits an authenticated endpoint (401 for invalid keys). Model catalog discovery still uses `/v1/models`.
-- **Pre-existing test staleness found & fixed:** `adapter-resolver.test.ts > aggregates all canonical adapter modules` was already failing on the integration tip (the llama-cpp leaf added a `chat-completions` provider without updating the expected list). Verified by stashing my changes and running it on the pristine tip. Updated it to reflect all four `chat-completions` leaves (groq, llama-cpp, openai, openrouter).
-- **Maintainer-side merge churn:** Generated catalog and global roster-test conflicts from parallel provider leaves landing on the same integration branch were resolved by the maintainer during merge (#414), not pushed back to the contributor.
-- **Pre-existing typecheck break (flagged, NOT touched):** `@nous/shared-server` typecheck fails on the integration tip at `bootstrap.ts:1335` (`cliSessionManager` not in `PrincipalSystemGatewayRuntimeDeps`) — unrelated to this work, confirmed present with my changes stashed. Reported, not fixed.
-- **Windows line endings:** regenerated catalogs briefly became CRLF locally after a git stash round-trip (`core.autocrlf=true`); re-running the generator restored LF. Committed bytes are LF, matching the repo, so CI is unaffected.
-- **Local assignment notes:** `contribution_readme.md` was untracked from git (`git rm --cached`) and re-ignored via `/*.md` so it stays local for this assignment without shipping process notes in the repo.
+- **Contribution 1 complete:** [#306](https://github.com/orthogonalhq/nous-core/issues/306) OpenRouter leaf merged via [#410](https://github.com/orthogonalhq/nous-core/pull/410) (2026-06-30); assigned on #306; maintainer refactor unblocked work per [2026-06-07 thread](https://github.com/orthogonalhq/nous-core/issues/306#issuecomment-4644415563).
+- Selected [#315](https://github.com/orthogonalhq/nous-core/issues/315) as contribution 2 — same provider-leaf pattern, new vendor.
+- Re-read maintainer updates on #315; compared DashScope compatible-mode docs against my OpenRouter `definition.ts` / `provider.ts`.
+- Commented on #315 ([2026-07-05](https://github.com/orthogonalhq/nous-core/issues/315#issuecomment-4887810460)) requesting target-branch confirmation.
+- Completed Phase I contribution README with scoped plan, affected files, and acceptance criteria.
+- **Next:** Sync fork from integration branch (includes my OpenRouter leaf); cut `feat/dashscope-provider-leaf` and implement.
 
 ### Code Changes
 
-**Initial PR:**
-- **Files added:** `providers/openrouter/{definition,adapter,provider,index}.ts`; `__tests__/providers/openrouter.test.ts`.
-- **Files modified (regenerated):** `provider-adapters.ts`, `provider-definitions.ts`, `provider-factories.ts`.
-- **Files modified (discovery fix):** `self/apps/shared-server/src/provider-model-discovery.ts` (3 `.optional()` on the `openai-models` schema) + `self/apps/shared-server/__tests__/provider-model-discovery.test.ts` (new OpenRouter-shape case).
-- **Tests updated:** `adapter-resolver.test.ts`, `provider-codegen.test.ts`, `provider-definitions/provider-definition-types.test.ts`, `provider-definitions/provider-definitions.test.ts`, `provider-pipeline-integration.test.ts`.
-
-**Review iteration (merged):**
-- **Files modified:** `providers/openrouter/provider.ts` (fail-closed factory), `providers/openrouter/definition.ts` (`healthCheckEndpoint: '/v1/key'`).
-- **Tests added/updated:** `openrouter.test.ts`, `provider-model-discovery.test.ts`, `provider-registry.test.ts`.
-- **Repo hygiene:** untracked `contribution_readme.md`; removed `!/contribution_readme.md` from `.gitignore`.
+- **Files to add:** `self/subcortex/providers/src/providers/dashscope/{definition,adapter,provider,index}.ts`; `__tests__/providers/dashscope.test.ts`.
+- **Files to regenerate:** `provider-definitions.ts`, `provider-factories.ts`, `provider-adapters.ts`.
+- **Files possibly touched:** aggregate provider tests; optionally `provider-model-discovery.ts` if parser edge case found.
+- **Key commits:** _(Phase II+)_
+- **Approach decisions:** Use `vendorKey: 'dashscope'` and `DASHSCOPE_API_KEY` to match Alibaba docs; international compatible-mode as default endpoint; copy fail-closed factory + health-check patterns directly from my OpenRouter leaf (#410).
 
 ---
 
 ## Pull Request
 
-**PR Link:** https://github.com/orthogonalhq/nous-core/pull/410  
-**Target branch:** `feat/contributor-friendly-inference-provider-surface`  
-**Issue closed:** #306  
-**Status:** **MERGED** (2026-06-30) by `@atlamors`  
-**Merge commit:** `2c52e6b`
+**PR Link:** _(not yet submitted)_
 
-### PR Description (final)
-> Adds a certified OpenRouter provider leaf (`self/subcortex/providers/src/providers/openrouter/`). OpenRouter is OpenAI Chat Completions-compatible, so the leaf carries only OpenRouter metadata and reuses the shared `ChatCompletionsProvider`, mirroring the Groq leaf. Built-in ID derives from `vendorKey`; catalogs regenerated via `generate:providers`. OpenRouter appears in API-key settings and its full model catalog is discovered via the registry-driven model discovery.
+**PR Description (draft):**
+
+> Adds a certified DashScope (Qwen cloud) provider leaf under `self/subcortex/providers/src/providers/dashscope/`. DashScope exposes an OpenAI Chat Completions-compatible API, so the leaf supplies vendor metadata and reuses `ChatCompletionsProvider`. Built-in provider ID derives from `vendorKey`; catalogs regenerated via `generate:providers`. DashScope appears in API Keys settings; model discovery uses `/v1/models` where supported.
 >
-> **Model discovery fix:** the shared `openai-models` parser required fields OpenRouter's `/v1/models` omits; made them optional so the full catalog lists. **Review fixes:** fail-closed factory (no `OPENAI_API_KEY` fallback), key validation via `/v1/key`, removed scratch notes from repo.
+> Closes #315.
 
-### Maintainer Feedback
+**Maintainer Feedback:**
 
-**Round 1 — initial review** (`@atlamors`, early-access provider integration review)
+- _(pending)_
 
-Positive:
-- Provider-leaf shape looks strong: certified structure, shared Chat Completions path, `OPENROUTER_API_KEY`, Bearer auth metadata, Settings/API Keys surfacing, useful provider tests.
-- OpenRouter-shaped model discovery parser fix appreciated as a real compatibility improvement.
-
-Requested changes (3 PR-local items):
-1. **Prevent OpenRouter from falling back to `OPENAI_API_KEY`.** Factory passed `apiKey: options?.apiKey` into `ChatCompletionsProvider`, which can fall back to `process.env.OPENAI_API_KEY` — could send OpenAI credentials to `https://openrouter.ai/api`. Fix: fail closed at the OpenRouter factory boundary until shared protocol cleanup.
-2. **Revisit API-key validation.** `/v1/models` returns 200 even without valid auth, so Settings can falsely mark invalid keys as valid. Fix: point validation at an endpoint that proves the key (or make behavior explicit).
-3. **Remove scratch contribution notes.** `contribution_readme.md` and the `.gitignore` exception are local process notes, not repo content.
-
-Non-blocking maintainer follow-ups noted: `nativeToolUse` (#390), broader protocol/adapter cleanup (#413).
-
-**Contributor response:** Acknowledged feedback; implemented all three items in a follow-up commit.
-
-**Round 2 — approval & merge** (`@atlamors`, 2026-06-30)
-
-> Thanks again for the update and quick iteration. I merged this as the initial early-access OpenRouter provider leaf. The requested PR-local changes were addressed: OpenRouter now fails closed instead of falling back to `OPENAI_API_KEY`, key validation uses `/v1/key` while model discovery remains on `/v1/models`, and the scratch contribution notes / `.gitignore` exception were removed.
->
-> The remaining generated catalog and global roster-test conflicts were maintainer-side merge churn from several provider leaves landing in parallel. I resolved those during merge and verified the focused provider/shared-server checks.
->
-> Thanks again for the OpenRouter implementation and the model discovery compatibility work.
-
----
-
-## Model discovery fix (resolved in this PR)
-
-**Symptom (before fix):** With a valid OpenRouter key, the model picker listed only `openrouter/auto` (which auto-routes to a GPT model). OpenRouter's full catalog never appeared, so a specific model couldn't be selected.
-
-**Root cause:** The shared discovery parser `self/apps/shared-server/src/provider-model-discovery.ts` validates `modelListFormat: 'openai-models'` responses with a strict schema that **requires** a top-level `object` and per-item `object` + `owned_by`. OpenRouter's `GET https://openrouter.ai/api/v1/models` omits those fields.
-
-**Fix applied:** made `object`/`owned_by` (per item) and the top-level `object` `.optional()` in `OpenAIModelsResponseSchema`. Covered by an OpenRouter-shape case in `provider-model-discovery.test.ts`.
-
----
-
-## Key validation fix (review round 2)
-
-**Symptom:** Settings "Test API Key" could report success for invalid OpenRouter keys because `/v1/models` is public.
-
-**Fix:** Added `healthCheckEndpoint: '/v1/key'` to the OpenRouter definition. `testProviderApiKey` already prefers `healthCheckEndpoint` over `modelListEndpoint`, so validation now hits `https://openrouter.ai/api/v1/key` (401 invalid, 200 valid) while catalog discovery stays on `/v1/models`.
+**Status:** Awaiting implementation (Phase II)
 
 ---
 
 ## Learnings & Reflections
 
-### The open-source contribution loop (what this PR demonstrates)
+### Technical Skills Gained
 
-This contribution followed the full loop maintainers expect from early-access integrators:
+**From contribution 1 (#306 / #410):**
+- End-to-end provider leaf: `definition.ts` → codegen → aggregate test roster updates → maintainer review iteration → merge.
+- OpenAI-compatible integration pitfalls: strict `/v1/models` Zod parsing, public catalog vs authenticated key validation, `ChatCompletionsProvider` credential fallback (#413).
+- Registry-driven surfacing — no app/UI edits needed for standard API-key providers.
 
-1. **Research & align** — Read the integration branch architecture (registry-driven provider leaves, Groq as reference) before coding; target the maintainer's branch, not `main`.
-2. **Submit a focused PR** — Leaf-only provider where possible; one small shared-server compatibility fix with tests and a clear rationale.
-3. **Receive substantive review** — Maintainer approved the shape but caught real issues: credential fallback risk, false-positive key validation, and repo hygiene.
-4. **Iterate quickly** — Address each requested change with tests, not debate; reply acknowledging feedback.
-5. **Merge & handoff** — Maintainer merged, resolved parallel-leaf merge churn themselves, and tracked broader cleanup in separate issues.
+**From contribution 2 Phase I (#315):**
+- Researched DashScope multi-region compatible-mode endpoints and `/v1/models` availability gaps across endpoint variants (beyond what OpenRouter required).
 
-### Teachable insights for future cohorts
+### Challenges Overcome
 
-**1. "OpenAI-compatible" ≠ "OpenAI-identical."**  
-OpenRouter speaks the Chat Completions protocol but its `/v1/models` payload omits fields OpenAI always sends. Strict Zod schemas that worked for OpenAI silently broke discovery for OpenRouter. When integrating aggregators, validate against *their* responses, not the reference vendor's.
+- **Contribution 1 — waiting on maintainer refactor:** On #306, `@atlamors` prioritized the adapter-surface refactor after I claimed the issue ([2026-06-07](https://github.com/orthogonalhq/nous-core/issues/306#issuecomment-4644415563)); I held implementation until the leaf contract stabilized, then delivered #410 in one focused PR cycle with a fast review turnaround.
+- **Contribution 2 — vendor-specific endpoints:** DashScope is not a single global URL like Groq or OpenRouter; choosing a default while documenting regional overrides is the main new design question for #315.
 
-**2. Separate "list models" from "prove credentials."**  
-A public model catalog endpoint is convenient for discovery but useless for key validation. Use `healthCheckEndpoint` (or equivalent) for auth proof and `modelListEndpoint` for catalog — same provider, different jobs.
+### What I'd Do Differently Next Time
 
-**3. Shared abstractions leak vendor assumptions.**  
-Reusing `ChatCompletionsProvider` was correct, but its internal `OPENAI_API_KEY` fallback is OpenAI-specific. When adding a new vendor through a shared factory, **fail closed at the leaf** if the shared layer has legacy fallbacks the maintainer hasn't cleaned up yet (#413).
-
-**4. Flag pre-existing breaks; don't scope-creep.**  
-The integration branch had an unrelated `bootstrap.ts` typecheck failure. Reporting it built trust; fixing it would have expanded the PR and mixed concerns.
-
-**5. Process docs belong outside the repo.**  
-Maintainers merge code, not assignment journals. Keep contribution write-ups local (gitignored) unless the project asks for them in `CONTRIBUTING.md` format.
-
-**6. Parallel contributions create merge churn — that's normal.**  
-Multiple provider leaves landing on one integration branch caused generated-file conflicts. The maintainer resolved those at merge time (#414). Contributors should fix conflicts *they* introduce; integration-branch reconciliation is often maintainer-owned.
+- On #315 Phase I: include a concrete implementation sketch in the issue comment (proposed `vendorKey`, endpoint, env var) alongside this README — I did that on #306 only after claiming; doing both together speeds maintainer feedback.
 
 ---
 
-## Second contribution cycle (what's next)
+## Resources Used
 
-With PR #410 merged, the OpenRouter leaf is on `feat/contributor-friendly-inference-provider-surface` awaiting that branch's merge to `main`. Possible follow-ups (not started):
+**This contribution (#315):**
+- [Issue #315 — Adapter: Alibaba Qwen / DashScope Model Provider](https://github.com/orthogonalhq/nous-core/issues/315)
+- [Alibaba Cloud — OpenAI compatibility with DashScope](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope)
+- [Alibaba Cloud — First API call to Qwen](https://www.alibabacloud.com/help/en/model-studio/first-api-call-to-qwen)
 
-| Area | Issue | Notes |
-|------|-------|-------|
-| Native tool use bridge | #390 | OpenRouter intentionally omits `nativeToolUse` until shared bridge supports full tool loop |
-| Protocol/adapter capability cleanup | #413 | Shared `ChatCompletionsProvider` OpenAI fallbacks; broader capability-source alignment |
-| Integration-branch merge resolution | #414 | Maintainer tracked parallel provider-leaf churn |
-| Rebase/sync fork | — | Pull upstream integration branch after merge; watch for catalog regen conflicts |
+**Prior contribution (#306) — direct precedent:**
+- [Issue #306 — OpenRouter Model Provider](https://github.com/orthogonalhq/nous-core/issues/306) (closed, assigned to me)
+- [Maintainer unblock thread](https://github.com/orthogonalhq/nous-core/issues/306#issuecomment-4644415563) — adapter-surface refactor before implementation
+- [PR #410 — merged OpenRouter leaf](https://github.com/orthogonalhq/nous-core/pull/410) — my primary code reference
 
-**Next contributor move:** Sync fork from `orthogonalhq/nous-core`, confirm OpenRouter appears on updated integration tip, and pick a scoped follow-up (e.g. a live key-validation smoke test doc, or helping #413 once maintainer scopes it) rather than expanding the merged leaf without an issue.
-
----
-
-## Timeline
-
-| Date | Event |
-|------|-------|
-| 2026-06 (initial) | PR #410 opened — OpenRouter leaf + model discovery fix |
-| 2026-06-28 | Maintainer review round 1 — three change requests |
-| 2026-06-28 | Contributor acknowledged; review fixes implemented |
-| 2026-06-30 | PR #410 merged by `@atlamors` into `feat/contributor-friendly-inference-provider-surface` |
-| 2026-06-30 | Maintainer confirmed all PR-local items addressed; merge churn resolved maintainer-side |
+**Nous docs & repo:**
+- [Provider adapter quickstart](https://docs.nue.orthg.nl/docs/development/provider-adapters/quickstart)
+- [Provider leaf anatomy](https://docs.nue.orthg.nl/docs/development/provider-adapters/provider-leaf-anatomy)
+- Reference leaves: `self/subcortex/providers/src/providers/openrouter/` (authored), `providers/groq/` (minimal)
+- `CLAUDE.md`, `CONTRIBUTING.md`, `.cursor/skills/nous-provider-leaf/SKILL.md`
