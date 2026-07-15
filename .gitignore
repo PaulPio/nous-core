@@ -58,13 +58,13 @@ yarn-error.log*
 
 # Internal markdown at root — keep public repo minimal.
 # Only README.md, CONTRIBUTING.md, LICENSE (and LICENSE.md) remain visible.
+# Local contributor notes (gitignored): AGENTS.md, CLAUDE.md, contribution_readme.md
 /*.md
 !/README.md
 !/CONTRIBUTING.md
-!/AGENTS.md
 !/LICENSE
 !/LICENSE.md
-!/contribution_readme.md
+/AGENTS.md
 
 
 # Local recovery script — not part of SP 1.17 scope
