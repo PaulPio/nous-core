@@ -41,8 +41,8 @@ export const OPENROUTER_PROVIDER_DEFINITION = {
     // request/tool-call/tool-result loop.
   },
   isLocal: false,
-  // No `wellKnownProviderId`: built-in provider ids are derived centrally from
-  // `vendorKey` by `provider-identity.ts` and hydrated into the catalog.
+  // Built-in provider ids are derived centrally from `vendorKey` by
+  // `provider-identity.ts` and hydrated into the catalog.
 } as const satisfies ProviderDefinitionLeaf;
 
 export {
