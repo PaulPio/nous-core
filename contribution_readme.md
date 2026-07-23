@@ -4,9 +4,12 @@
 **Student:** Paul Piotrowski  
 **Issue:** https://github.com/orthogonalhq/nous-core/issues/315  
 **Fork:** https://github.com/PaulPio/nous-core  
-**Status:** Phase II — Complete (reproduction executed + implementation plan finalized; no code, no PR)  
-**Working branch:** [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf) (cut from `upstream/feat/contributor-friendly-inference-provider-surface` @ `9604e213`)  
+**Status:** Phase III Complete  
+**Working branch:** [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf)  
+**Key commit:** [`4cb7f53a`](https://github.com/PaulPio/nous-core/commit/4cb7f53a) — `feat(subcortex-providers): add DashScope (Qwen) provider leaf` (pushed to fork)  
 **Prior contribution:** [#306 OpenRouter provider](https://github.com/orthogonalhq/nous-core/issues/306) → [PR #410 merged 2026-06-30](https://github.com/orthogonalhq/nous-core/pull/410)
+
+**Phase III check-in:** Implementation complete on the fork. Leaf + regenerated catalogs + unit/aggregate tests landed in `4cb7f53a`. Live intl probe recorded (models 401 unauth / 200 auth; chat 200). Automated gate met (zero new failures vs Phase II Windows baseline). PR opening is Phase IV.
 
 ---
 
@@ -66,12 +69,12 @@ Today, attempting to use hosted Qwen requires manual workarounds (custom OpenAI 
 
 **Concrete acceptance criteria (“done” looks like):**
 
-- [ ] `dashscope` leaf passes `ProviderDefinitionSchema` hydration (no manual UUID).
-- [ ] `DASHSCOPE_API_KEY` is the sole credential source at the factory boundary (no `OPENAI_API_KEY` fallback).
-- [ ] Default endpoint targets international compatible-mode **base without the `/v1` suffix** (`https://dashscope-intl.aliyuncs.com/compatible-mode`) — the shared provider appends `/v1/...` itself (see doubled-`/v1` finding under Investigative Depth); document regional overrides.
-- [ ] Capabilities declare only verified features (`streaming`, `modelListing`); omit `nativeToolUse` until #390.
-- [ ] Leaf unit test + updated aggregate roster tests; `check:generated` clean.
-- [ ] Manual smoke: provider visible in API Keys, valid key connects, model picker shows catalog or default model, chat completion succeeds.
+- [x] `dashscope` leaf passes `ProviderDefinitionSchema` hydration (no manual UUID).
+- [x] `DASHSCOPE_API_KEY` is the sole credential source at the factory boundary (no `OPENAI_API_KEY` fallback).
+- [x] Default endpoint targets international compatible-mode **base without the `/v1` suffix** (`https://dashscope-intl.aliyuncs.com/compatible-mode`) — the shared provider appends `/v1/...` itself (see doubled-`/v1` finding under Investigative Depth); China override documented in `definition.ts`.
+- [x] Capabilities declare only verified features (`streaming`, `modelListing`); omit `nativeToolUse` until #390.
+- [x] Leaf unit test + updated aggregate roster tests; `check:generated` clean.
+- [x] Live API probe with real intl key: unauth models **401**, auth models **200** (OpenAI `{ object, data:[{id}] }` envelope), chat completions **200** (`qwen-plus` → `"Hi"`). UI Settings walk deferred to Phase IV PR verification (Settings is registry-driven; catalog now includes `dashscope`).
 
 ---
 
@@ -187,7 +190,7 @@ Add a certified **DashScope provider leaf** at `self/subcortex/providers/src/pro
 - `defaultModelId: 'qwen-plus'` (widely documented starter model)
 - `auth.envVar: 'DASHSCOPE_API_KEY'`, Bearer header, vault namespace `dashscope`
 - `modelListEndpoint: '/v1/models'`, `modelListFormat: 'openai-models'`
-- `healthCheckEndpoint`: TBD after manual probe — add if `/v1/models` does not prove credentials
+- `healthCheckEndpoint`: **omitted** — live probe showed `GET /v1/models` returns **401** without auth and **200** with Bearer key, so key validation can use `modelListEndpoint` (testing-checklist fallback)
 - Fail-closed `providerFactory.create()` resolving only `DASHSCOPE_API_KEY`
 
 Then run `pnpm --filter @nous/subcortex-providers run generate:providers` and extend test rosters.
@@ -224,15 +227,15 @@ Using UMPIRE framework (adapted):
 7. Manual smoke with real `DASHSCOPE_API_KEY` on `pnpm dev:web`.
 8. Open PR targeting `feat/contributor-friendly-inference-provider-surface`.
 
-**Implement:** Branch ready — [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf) (code lands in Phase III; commits will appear on this link).
+**Implement:** Done on [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf) @ `4cb7f53a` (see Phase III notes below).
 
 **Review:**
 
-- [ ] No hand-authored `wellKnownProviderId`
-- [ ] Generated catalogs not manually edited
-- [ ] No `@nous/shared` interface changes
-- [ ] No unrelated fixes bundled
-- [ ] `contribution_readme.md` stays local (not committed)
+- [x] No hand-authored `wellKnownProviderId`
+- [x] Generated catalogs not manually edited (`generate:providers` only; LF verified via `git ls-files --eol`)
+- [x] No `@nous/shared` interface changes
+- [x] No unrelated product fixes bundled (in-passing codegen roster-order fix + missing Mistral/xAI env stubs in a test we already edited — called out for PR)
+- [x] `contribution_readme.md` stays local (not committed; root `/*.md` gitignored)
 
 **Evaluate:** Testing-checklist suggested commands first —
 
@@ -248,34 +251,65 @@ then the repo gate (`pnpm typecheck && pnpm lint && pnpm test self/subcortex/pro
 
 ## Testing Strategy
 
-### Unit Tests
+### Unit Tests (`src/__tests__/providers/dashscope.test.ts` — new)
 
-- [ ] **Definition metadata:** `vendorKey`, `displayName`, `protocol`, `defaultEndpoint`, `defaultModelId`, `DASHSCOPE_API_KEY`, Bearer auth, model list fields.
-- [ ] **Schema hydration:** hydrated definition passes `ProviderDefinitionSchema`; no manual `wellKnownProviderId`.
-- [ ] **Capabilities:** `streaming` + `modelListing` present; `nativeToolUse` absent.
-- [ ] **Factory:** builds `ChatCompletionsProvider` with `deriveBuiltInProviderId('dashscope')`.
-- [ ] **Auth fail-closed:** throws `NousError` / `PROVIDER_AUTH_FAILED` when key missing.
-- [ ] **Regression:** factory does **not** use `OPENAI_API_KEY` when `DASHSCOPE_API_KEY` unset.
+- [x] **Definition metadata:** `vendorKey`, `displayName`, `protocol`, `defaultEndpoint`, `defaultModelId`, `DASHSCOPE_API_KEY`, Bearer auth, model list fields; doubled-`/v1` guard (`endsWith('/v1') === false`); no `healthCheckEndpoint`.
+- [x] **Schema hydration:** hydrated definition passes `ProviderDefinitionSchema`; no manual `wellKnownProviderId`.
+- [x] **Capabilities:** `streaming` + `modelListing` present; `nativeToolUse` absent.
+- [x] **Factory:** builds `ChatCompletionsProvider` with `deriveBuiltInProviderId('dashscope')`.
+- [x] **Auth fail-closed:** throws `NousError` / `PROVIDER_AUTH_FAILED` when key missing.
+- [x] **Regression:** factory does **not** use `OPENAI_API_KEY` when `DASHSCOPE_API_KEY` unset; resolves `DASHSCOPE_API_KEY` from env.
 
-### Integration Tests
+### Integration Tests (existing aggregate files updated)
 
-- [ ] `provider-codegen.test.ts` — leaf discovered; generated files in sync.
-- [ ] `provider-definitions.test.ts` — roster includes `dashscope`.
-- [ ] `provider-pipeline-integration.test.ts` — registry constructs `ChatCompletionsProvider` with `DASHSCOPE_API_KEY`.
-- [ ] `provider-registry.test.ts` — routing uses DashScope env var, not OpenAI.
-- [ ] _(If needed)_ `provider-model-discovery.test.ts` — DashScope-shaped `/v1/models` parse + key validation.
+- [x] `provider-codegen.test.ts` — leaf discovered alphabetically after `codex-cli`; also fixed pre-existing `qwen-code`/`vllm` order mismatch.
+- [x] `provider-definitions.test.ts` / `provider-definition-types.test.ts` — roster includes `dashscope`.
+- [x] `provider-pipeline-integration.test.ts` — registry constructs `ChatCompletionsProvider` with `DASHSCOPE_API_KEY`; skips without env.
+- [x] `adapter-resolver.test.ts` — vendor resolves to `chat-completions`; `ADAPTER_MODULES` gains an extra `chat-completions` after `codex-cli`.
+- [x] `provider-registry.test.ts` — DashScope remote route uses `DASHSCOPE_API_KEY` + intl endpoint.
+- [x] `public-exports.test.ts` — no manual edit; covered generically by generated catalogs.
+- [x] ~~`provider-model-discovery.test.ts`~~ — **not needed**: live auth models response matched `openai-models` (`{ object: "list", data: [{ id, ... }] }`).
 
-### Manual Testing
+### Automated gate results (Phase III — 2026-07-22)
 
-- [ ] DashScope appears in Settings → API Keys dropdown.
-- [ ] Invalid key fails validation (once `healthCheckEndpoint` confirmed).
-- [ ] Valid key stores and connects.
-- [ ] Model picker lists Qwen models (or shows `qwen-plus` default).
-- [ ] Send a chat turn; receive streamed Qwen response.
+| Command | Result |
+|---------|--------|
+| Focused vitest (leaf + codegen + exports + definitions + adapter-resolver + pipeline + registry) | **82/82 passed** |
+| `pnpm test self/subcortex/providers` | **532 passed** / **3 failed** / 4 skipped — failures are the same pre-existing Windows `qwen-code` live-runner spawn/SIGTERM artifacts from Phase II; codegen CRLF + roster-order failures cleared (roster fix + regen). **Zero new failures** vs baseline intent. |
+| `@nous/subcortex-providers` typecheck + `check:generated` | Pass |
+| `pnpm lint` | 0 errors |
+| `pnpm build` | Pass |
+| Root `pnpm typecheck` | Pre-existing unrelated `shared-server` error (`cliSessionManager` on `PrincipalSystemGatewayRuntimeDeps`) — reported, not expanded |
+
+### Manual / live probe (Phase III — 2026-07-22)
+
+Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `DASHSCOPE_API_KEY` (key never committed; rotate if ever pasted into a shared log):
+
+| Probe | Result |
+|-------|--------|
+| `GET /v1/models` without auth | **401** — API key required |
+| `GET /v1/models` with Bearer key | **200** — OpenAI list envelope; catalog includes Qwen and other Model Studio ids |
+| `POST /v1/chat/completions` (`qwen-plus`, trivial user message) | **200** — assistant content `"Hi"` |
+
+- [ ] DashScope in Settings → API Keys UI walk — **Phase IV** (catalog entry is present; registry-driven surface)
+- [x] Valid key authenticates models + chat at the documented intl endpoint (curl probe above)
+- [x] Model list shape compatible with shared `openai-models` parser (no shared-server change)
 
 ---
 
 ## Implementation Notes
+
+### Week 3 Progress (Phase III — 2026-07-22) — Complete
+
+- Synced `feat/dashscope-provider-leaf` with `upstream/feat/contributor-friendly-inference-provider-surface` (already up to date).
+- **Live probe** (intl compatible-mode): unauth models **401** → no `healthCheckEndpoint`; auth models **200** OpenAI envelope → no shared-server change; chat `qwen-plus` **200**.
+- Implemented four leaf files mirroring OpenRouter: `definition.ts`, `adapter.ts`, `provider.ts` (fail-closed via `auth.envVar`), `index.ts`.
+- Ran `generate:providers` / `check:generated`; catalogs LF-clean (`i/lf w/lf`).
+- Added `dashscope.test.ts`; updated aggregate roster tests including `ADAPTER_MODULES` extra `chat-completions` after `codex-cli`.
+- In-passing: fixed `provider-codegen.test.ts` roster order (`qwen-code` before `vllm`); set missing `MISTRAL_API_KEY` / `XAI_API_KEY` in the pipeline env-construction test we were already editing.
+- Verification: focused 82/82; providers suite zero new failures vs Phase II baseline intent; lint + build pass.
+- Committed and pushed: `4cb7f53a` on https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf
+- **Next (Phase IV):** open PR → `orthogonalhq:feat/contributor-friendly-inference-provider-surface`; optional `pnpm dev:web` Settings smoke; respond to review.
 
 ### Week 2 Progress (Phase II — 2026-07-15)
 
@@ -283,8 +317,7 @@ then the repo gate (`pnpm typecheck && pnpm lint && pnpm test self/subcortex/pro
 - Executed the full reproduction: roster listing (18 vendors, no `dashscope/`), generated-catalog grep (0 hits), `check:generated` clean, provider test baseline (520 passed / 6 pre-existing Windows-environment failures, characterized — CRLF codegen assertions, `qwen-code` live-runner signal semantics, one pipeline env case).
 - Key discovery sharpening the repro: the only `DASHSCOPE_API_KEY` in the codebase is the `qwen-code` CLI env-passthrough allowlist — confirms "no first-class DashScope provider" precisely.
 - Maintainer confirmed on #315: target branch unchanged, provider surface stable since #410, docs current, open adapter-surface issues listed — folded into plan constraints.
-- Finalized the UMPIRE implementation plan (below); grounded Evaluate in the official testing-checklist commands.
-- **Next (Phase III):** live endpoint probe with real `DASHSCOPE_API_KEY` (decides `healthCheckEndpoint`), implement the four leaf files, codegen, tests, PR.
+- Finalized the UMPIRE implementation plan; grounded Evaluate in the official testing-checklist commands.
 
 ### Week 1 Progress (Phase I)
 
@@ -293,33 +326,68 @@ then the repo gate (`pnpm typecheck && pnpm lint && pnpm test self/subcortex/pro
 - Re-read maintainer updates on #315; compared DashScope compatible-mode docs against my OpenRouter `definition.ts` / `provider.ts`.
 - Commented on #315 ([2026-07-05](https://github.com/orthogonalhq/nous-core/issues/315#issuecomment-4887810460)) requesting target-branch confirmation.
 - Completed Phase I contribution README with scoped plan, affected files, and acceptance criteria.
-- **Next:** Sync fork from integration branch (includes my OpenRouter leaf); cut `feat/dashscope-provider-leaf` and implement.
+
+### Challenges Faced (Phase III)
+
+1. **Doubled-`/v1` trap** — locked `defaultEndpoint` without `/v1` (xAI `a4dc1950`); unit test pins `endsWith('/v1') === false`.
+2. **`healthCheckEndpoint` typing** — omitting the field means TS rejects property access; assert `'healthCheckEndpoint' in definition === false`.
+3. **`ADAPTER_MODULES` roster** — must insert an extra `chat-completions` after `codex-cli`, not only the vendor resolve assertion (would fail CI otherwise).
+4. **Pipeline env-construction gaps** — adding `dashscope` exposed that `MISTRAL_API_KEY` / `XAI_API_KEY` were cleaned in `afterEach` but never set in the “construct with env credentials” test; set stubs in the same edit.
 
 ### Code Changes
 
-- **Files to add:** `self/subcortex/providers/src/providers/dashscope/{definition,adapter,provider,index}.ts`; `__tests__/providers/dashscope.test.ts`.
-- **Files to regenerate:** `provider-definitions.ts`, `provider-factories.ts`, `provider-adapters.ts`.
-- **Files possibly touched:** aggregate provider tests; optionally `provider-model-discovery.ts` if parser edge case found.
-- **Key commits:** _(Phase II+)_
-- **Approach decisions:** Use `vendorKey: 'dashscope'` and `DASHSCOPE_API_KEY` to match Alibaba docs; international compatible-mode as default endpoint; copy fail-closed factory + health-check patterns directly from my OpenRouter leaf (#410).
+- **Added:** `self/subcortex/providers/src/providers/dashscope/{definition,adapter,provider,index}.ts`; `__tests__/providers/dashscope.test.ts`.
+- **Regenerated:** `provider-definitions.ts`, `provider-factories.ts`, `provider-adapters.ts`.
+- **Updated tests:** `provider-codegen`, `provider-definitions`, `provider-definition-types`, `provider-pipeline-integration`, `adapter-resolver`, `provider-registry`.
+- **Not touched:** `provider-model-discovery.ts`, `self/shared` interfaces, Settings/UI source.
+- **Key commit:** `4cb7f53a` — `feat(subcortex-providers): add DashScope (Qwen) provider leaf`
+- **Approach decisions:** `vendorKey: 'dashscope'`; intl base without `/v1`; fail-closed factory from OpenRouter (#410); no `healthCheckEndpoint` after 401/200 probe; omit `nativeToolUse` (#390).
 
 ---
 
 ## Pull Request
 
-**PR Link:** _(not yet submitted)_
+**PR Link:** _(opens in Phase IV)_  
+**Target:** `PaulPio:feat/dashscope-provider-leaf` → `orthogonalhq:feat/contributor-friendly-inference-provider-surface`  
+**Title (planned):** `feat(providers): add DashScope (Qwen) provider leaf`
 
-**PR Description (draft):**
+**PR Description (draft for Phase IV):**
 
-> Adds a certified DashScope (Qwen cloud) provider leaf under `self/subcortex/providers/src/providers/dashscope/`. DashScope exposes an OpenAI Chat Completions-compatible API, so the leaf supplies vendor metadata and reuses `ChatCompletionsProvider`. Built-in provider ID derives from `vendorKey`; catalogs regenerated via `generate:providers`. DashScope appears in API Keys settings; model discovery uses `/v1/models` where supported.
->
-> Closes #315.
+```markdown
+## Summary
+- Add certified DashScope (Qwen) OpenAI-compatible provider leaf (`vendorKey: dashscope`) reusing `ChatCompletionsProvider`.
+- Default intl endpoint omits `/v1` so the shared provider does not double the path segment (xAI precedent `a4dc1950`).
+- Fail-closed factory on `DASHSCOPE_API_KEY` / explicit `apiKey` only (#413); capabilities advertise `streaming` + `modelListing` only (#390).
+- No `healthCheckEndpoint`: live probe showed `GET /v1/models` → 401 without auth / 200 with Bearer key (OpenAI list envelope); chat `qwen-plus` → 200.
+- In-passing: `provider-codegen.test.ts` roster order now lists `qwen-code` before `vllm` (pre-existing mismatch).
+
+## Linked Issue
+Closes #315
+
+## Changes
+- New leaf: `self/subcortex/providers/src/providers/dashscope/`
+- Regenerated provider catalogs (not hand-edited)
+- Leaf + aggregate roster tests (including `ADAPTER_MODULES` chat-completions insert)
+
+## Verification
+- [x] Focused providers vitest (82/82)
+- [x] `pnpm test self/subcortex/providers` — zero new failures vs Windows baseline (3 qwen-code spawn failures remain)
+- [x] Lint + build + providers typecheck
+- [ ] Root `pnpm typecheck` — pre-existing shared-server failure unrelated to this leaf
+- [x] Live curl probe (models + chat) with intl key
+- [ ] Manual Settings UI smoke (`pnpm dev:web`) — optional follow-up
+
+## Checklist
+- [x] Branch → integration base `feat/contributor-friendly-inference-provider-surface` (not `main`)
+- [x] Conventional Commits
+- [x] Docs N/A for normal API-key leaf (registry-driven Settings)
+```
 
 **Maintainer Feedback:**
 
-- _(pending)_
+- _(pending Phase IV)_
 
-**Status:** Awaiting implementation (Phase II)
+**Status:** Phase III complete — implementation on fork; PR not opened yet (Phase IV)
 
 ---
 
@@ -340,14 +408,21 @@ then the repo gate (`pnpm typecheck && pnpm lint && pnpm test self/subcortex/pro
 - Learned to separate pre-existing baseline failures from contribution-caused ones: traced 2 codegen test failures to Windows CRLF checkout (`core.autocrlf=true` vs LF-anchored `startsWith` assertion) rather than assuming broken code — recorded as baseline so Phase III diffs against it.
 - Grep before you claim: "no DASHSCOPE_API_KEY anywhere" would have been wrong — the `qwen-code` CLI leaf allowlists it as env passthrough. Precision here made the reproduction claim stronger, not weaker.
 
+**From contribution 2 Phase III (#315):**
+- Live probe before locking definition fields pays off: unauth **401** / auth **200** on `/v1/models` cleanly decided “no `healthCheckEndpoint`,” and the OpenAI envelope meant zero shared-server churn.
+- Aggregate roster tests are part of the leaf contract — especially `ADAPTER_MODULES` duplicate `chat-completions` ordering — not optional polish.
+- Repeatable workflow: OpenRouter template → four files → codegen → leaf test → roster updates → focused vitest → commit/push.
+
 ### Challenges Overcome
 
 - **Contribution 1 — waiting on maintainer refactor:** On #306, `@atlamors` prioritized the adapter-surface refactor after I claimed the issue ([2026-06-07](https://github.com/orthogonalhq/nous-core/issues/306#issuecomment-4644415563)); I held implementation until the leaf contract stabilized, then delivered #410 in one focused PR cycle with a fast review turnaround.
-- **Contribution 2 — vendor-specific endpoints:** DashScope is not a single global URL like Groq or OpenRouter; choosing a default while documenting regional overrides is the main new design question for #315.
+- **Contribution 2 — vendor-specific endpoints:** Chose intl `compatible-mode` without `/v1`, documented China override, and validated with a real key rather than guessing `healthCheckEndpoint`.
+- **Contribution 2 — Windows baseline discipline:** Diffed Phase III results against the Phase II 6-failure baseline; shipped with zero new failures and cleared the codegen order mismatch in passing.
 
 ### What I'd Do Differently Next Time
 
 - On #315 Phase I: include a concrete implementation sketch in the issue comment (proposed `vendorKey`, endpoint, env var) alongside this README — I did that on #306 only after claiming; doing both together speeds maintainer feedback.
+- Export the API key only in the shell (`export DASHSCOPE_API_KEY=…`) and avoid pasting it into logs/transcripts; rotate if exposure is possible.
 
 ---
 
