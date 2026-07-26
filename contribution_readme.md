@@ -4,12 +4,13 @@
 **Student:** Paul Piotrowski  
 **Issue:** https://github.com/orthogonalhq/nous-core/issues/315  
 **Fork:** https://github.com/PaulPio/nous-core  
-**Status:** Phase III Complete  
+**Status:** Phase IV Complete — Awaiting review  
 **Working branch:** [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf)  
 **Key commit:** [`4cb7f53a`](https://github.com/PaulPio/nous-core/commit/4cb7f53a) — `feat(subcortex-providers): add DashScope (Qwen) provider leaf` (pushed to fork)  
+**Pull request:** [#426](https://github.com/orthogonalhq/nous-core/pull/426) → `feat/contributor-friendly-inference-provider-surface`  
 **Prior contribution:** [#306 OpenRouter provider](https://github.com/orthogonalhq/nous-core/issues/306) → [PR #410 merged 2026-06-30](https://github.com/orthogonalhq/nous-core/pull/410)
 
-**Phase III check-in:** Implementation complete on the fork. Leaf + regenerated catalogs + unit/aggregate tests landed in `4cb7f53a`. Live intl probe recorded (models 401 unauth / 200 auth; chat 200). Automated gate met (zero new failures vs Phase II Windows baseline). PR opening is Phase IV.
+**Phase IV check-in:** PR submitted — [#426](https://github.com/orthogonalhq/nous-core/pull/426). Pre-submit sync confirmed feature branch up to date with the integration base; diff is leaf + catalogs + tests only. Review requested from `@atlamors`. Course README / skills stay on `Reports` only (not on the PR head).
 
 ---
 
@@ -299,6 +300,16 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 
 ## Implementation Notes
 
+### Week 4 Progress (Phase IV — 2026-07-26) — Complete (PR open)
+
+- Re-synced `feat/dashscope-provider-leaf` with `upstream/feat/contributor-friendly-inference-provider-surface` (already up to date; no force-push needed).
+- Pre-submit diff review: 14 files, leaf + regenerated catalogs + tests only — no process docs on the PR head.
+- Re-ran focused providers vitest: 81/82; sole failure is the known Windows CRLF codegen header assertion (Phase II baseline).
+- Opened PR [#426](https://github.com/orthogonalhq/nous-core/pull/426) against `feat/contributor-friendly-inference-provider-surface` with repo template body + probe evidence; `Closes #315`.
+- Requested review via PR comment tagging `@atlamors`.
+- Added course skill `codepath-phase-iv-pr` on **`Reports` only** (not on PR branch).
+- **Next:** respond to maintainer feedback; optional `pnpm dev:web` Settings smoke; LMS + Slack Phase IV celebration.
+
 ### Week 3 Progress (Phase III — 2026-07-22) — Complete
 
 - Synced `feat/dashscope-provider-leaf` with `upstream/feat/contributor-friendly-inference-provider-surface` (already up to date).
@@ -309,7 +320,6 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 - In-passing: fixed `provider-codegen.test.ts` roster order (`qwen-code` before `vllm`); set missing `MISTRAL_API_KEY` / `XAI_API_KEY` in the pipeline env-construction test we were already editing.
 - Verification: focused 82/82; providers suite zero new failures vs Phase II baseline intent; lint + build pass.
 - Committed and pushed: `4cb7f53a` on https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf
-- **Next (Phase IV):** open PR → `orthogonalhq:feat/contributor-friendly-inference-provider-surface`; optional `pnpm dev:web` Settings smoke; respond to review.
 
 ### Week 2 Progress (Phase II — 2026-07-15)
 
@@ -347,47 +357,17 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 
 ## Pull Request
 
-**PR Link:** _(opens in Phase IV)_  
+**PR Link:** https://github.com/orthogonalhq/nous-core/pull/426  
 **Target:** `PaulPio:feat/dashscope-provider-leaf` → `orthogonalhq:feat/contributor-friendly-inference-provider-surface`  
-**Title (planned):** `feat(providers): add DashScope (Qwen) provider leaf`
+**Title:** `feat(providers): add DashScope (Qwen) provider leaf`
 
-**PR Description (draft for Phase IV):**
-
-```markdown
-## Summary
-- Add certified DashScope (Qwen) OpenAI-compatible provider leaf (`vendorKey: dashscope`) reusing `ChatCompletionsProvider`.
-- Default intl endpoint omits `/v1` so the shared provider does not double the path segment (xAI precedent `a4dc1950`).
-- Fail-closed factory on `DASHSCOPE_API_KEY` / explicit `apiKey` only (#413); capabilities advertise `streaming` + `modelListing` only (#390).
-- No `healthCheckEndpoint`: live probe showed `GET /v1/models` → 401 without auth / 200 with Bearer key (OpenAI list envelope); chat `qwen-plus` → 200.
-- In-passing: `provider-codegen.test.ts` roster order now lists `qwen-code` before `vllm` (pre-existing mismatch).
-
-## Linked Issue
-Closes #315
-
-## Changes
-- New leaf: `self/subcortex/providers/src/providers/dashscope/`
-- Regenerated provider catalogs (not hand-edited)
-- Leaf + aggregate roster tests (including `ADAPTER_MODULES` chat-completions insert)
-
-## Verification
-- [x] Focused providers vitest (82/82)
-- [x] `pnpm test self/subcortex/providers` — zero new failures vs Windows baseline (3 qwen-code spawn failures remain)
-- [x] Lint + build + providers typecheck
-- [ ] Root `pnpm typecheck` — pre-existing shared-server failure unrelated to this leaf
-- [x] Live curl probe (models + chat) with intl key
-- [ ] Manual Settings UI smoke (`pnpm dev:web`) — optional follow-up
-
-## Checklist
-- [x] Branch → integration base `feat/contributor-friendly-inference-provider-surface` (not `main`)
-- [x] Conventional Commits
-- [x] Docs N/A for normal API-key leaf (registry-driven Settings)
-```
+**PR Description:** Adds a certified DashScope (Qwen) OpenAI-compatible provider leaf reusing `ChatCompletionsProvider`, with a fail-closed `DASHSCOPE_API_KEY` factory, intl base without `/v1`, and live-probe-backed decision to omit `healthCheckEndpoint`. Closes #315.
 
 **Maintainer Feedback:**
 
-- _(pending Phase IV)_
+- Awaiting first review. Review requested from `@atlamors` on 2026-07-26 ([comment](https://github.com/orthogonalhq/nous-core/pull/426#issuecomment-5085569505)).
 
-**Status:** Phase III complete — implementation on fork; PR not opened yet (Phase IV)
+**Status:** Awaiting review
 
 ---
 
@@ -412,6 +392,10 @@ Closes #315
 - Live probe before locking definition fields pays off: unauth **401** / auth **200** on `/v1/models` cleanly decided “no `healthCheckEndpoint`,” and the OpenAI envelope meant zero shared-server churn.
 - Aggregate roster tests are part of the leaf contract — especially `ADAPTER_MODULES` duplicate `chat-completions` ordering — not optional polish.
 - Repeatable workflow: OpenRouter template → four files → codegen → leaf test → roster updates → focused vitest → commit/push.
+
+**From contribution 2 Phase IV (#315):**
+- Course “PR to `main`” instructions must be overridden by the maintainer-assigned integration branch — same lesson as #410.
+- Keep course artifacts (`contribution_readme.md`, `.cursor/skills/`) on `Reports` so they never enter the upstream PR diff.
 
 ### Challenges Overcome
 
