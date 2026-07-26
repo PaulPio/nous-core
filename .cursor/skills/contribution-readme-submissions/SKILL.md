@@ -102,22 +102,30 @@ the structure below using issue/branch context — do not invent merge/PR links.
 
 ### Phase IV — PR + review loop
 
-- [ ] Status → `Phase IV — PR open` / `Complete` as appropriate
-- [ ] **PR Link** filled; Linked Issue / Closes #N in draft matches reality
+For opening the PR, review requests, and feedback tone, follow
+[`codepath-phase-iv-pr`](../codepath-phase-iv-pr/SKILL.md).
+
+**README edits happen on `Reports` only** — never on the feature/PR head branch.
+
+- [ ] `git checkout Reports` before editing this file
+- [ ] Status → `Phase IV — Awaiting review` / `Iterating` / `Complete` as appropriate
+- [ ] **PR Link** filled; Linked Issue / Closes #N matches the real PR
 - [ ] Verification checklist mirrors PR template (tests, lint, typecheck, manual)
-- [ ] Maintainer Feedback: summarize review threads + what you changed
-- [ ] Implementation Notes: review iterations / follow-up commits
+- [ ] Maintainer Feedback: summarize review threads + what you changed (or “Awaiting first review”)
+- [ ] Implementation Notes: Phase IV week entry + review iterations
 - [ ] Final check-in blurb when course asks for Phase IV Complete
+- [ ] If committing the README on the fork, push to `origin/Reports` only
 
 ## How to edit safely
 
-1. Read the current `contribution_readme.md` fully before editing.
-2. Gather facts from the branch: `git log`, `git status`, test output, issue/PR URLs.
-3. Prefer surgical updates (status, checkboxes, new Week section, PR draft).
-4. When marking Complete, ensure every newly checked box has evidence in the same
-   doc (command result, probe table, or commit link).
-5. After editing, remind the user: file is local/gitignored — submit via the course
-   form/LMS, not via the upstream PR diff.
+1. Confirm you are on **`Reports`** (not the PR feature branch) before editing.
+2. Read the current `contribution_readme.md` fully before editing.
+3. Gather facts from the feature branch / PR: `git log`, test output, issue/PR URLs.
+4. Prefer surgical updates (status, checkboxes, new Week section, PR link).
+5. When marking Complete, ensure every newly checked box has evidence in the same
+   doc (command result, probe table, commit/PR link).
+6. Remind the user: submit via the course LMS; do **not** put this file on the
+   upstream PR head.
 
 ## Baseline & honesty rules
 
