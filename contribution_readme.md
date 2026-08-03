@@ -4,13 +4,13 @@
 **Student:** Paul Piotrowski  
 **Issue:** https://github.com/orthogonalhq/nous-core/issues/315  
 **Fork:** https://github.com/PaulPio/nous-core  
-**Status:** Phase IV Complete — Awaiting review  
+**Status:** Phase IV Complete — Merged  
 **Working branch:** [`feat/dashscope-provider-leaf`](https://github.com/PaulPio/nous-core/tree/feat/dashscope-provider-leaf)  
 **Key commit:** [`4cb7f53a`](https://github.com/PaulPio/nous-core/commit/4cb7f53a) — `feat(subcortex-providers): add DashScope (Qwen) provider leaf` (pushed to fork)  
-**Pull request:** [#426](https://github.com/orthogonalhq/nous-core/pull/426) → `feat/contributor-friendly-inference-provider-surface`  
+**Pull request:** [#426](https://github.com/orthogonalhq/nous-core/pull/426) — **merged** 2026-07-30 by `@atlamors` into `feat/contributor-friendly-inference-provider-surface`  
 **Prior contribution:** [#306 OpenRouter provider](https://github.com/orthogonalhq/nous-core/issues/306) → [PR #410 merged 2026-06-30](https://github.com/orthogonalhq/nous-core/pull/410)
 
-**Phase IV check-in:** PR submitted — [#426](https://github.com/orthogonalhq/nous-core/pull/426). Pre-submit sync confirmed feature branch up to date with the integration base; diff is leaf + catalogs + tests only. Review requested from `@atlamors`. Course README / skills stay on `Reports` only (not on the PR head).
+**Phase IV check-in:** PR [#426](https://github.com/orthogonalhq/nous-core/pull/426) approved and merged by `@atlamors` (2026-07-30). Leaf accepted as focused and ready; roster-test conflicts with parallel Azure OpenAI PR #425 were resolved on the maintainer side (related to #414). No contributor follow-up commits were required. Course README / skills remain on `Reports` only.
 
 ---
 
@@ -300,7 +300,7 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 
 ## Implementation Notes
 
-### Week 4 Progress (Phase IV — 2026-07-26) — Complete (PR open)
+### Week 4 Progress (Phase IV — 2026-07-26 → 2026-07-30) — Complete (merged)
 
 - Re-synced `feat/dashscope-provider-leaf` with `upstream/feat/contributor-friendly-inference-provider-surface` (already up to date; no force-push needed).
 - Pre-submit diff review: 14 files, leaf + regenerated catalogs + tests only — no process docs on the PR head.
@@ -308,7 +308,7 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 - Opened PR [#426](https://github.com/orthogonalhq/nous-core/pull/426) against `feat/contributor-friendly-inference-provider-surface` with repo template body + probe evidence; `Closes #315`.
 - Requested review via PR comment tagging `@atlamors`.
 - Added course skill `codepath-phase-iv-pr` on **`Reports` only** (not on PR branch).
-- **Next:** respond to maintainer feedback; optional `pnpm dev:web` Settings smoke; LMS + Slack Phase IV celebration.
+- **2026-07-30:** `@atlamors` **approved and merged** [#426](https://github.com/orthogonalhq/nous-core/pull/426). After parallel Azure OpenAI PR #425 landed, he resolved shared roster-test conflicts by keeping both vendor entries (maintainer-side churn tied to #414). He also tightened an endpoint comment (chat-completions vs model discovery); endpoint-preservation behavior remains maintainer-owned under #413. On the updated head: generated-provider check, full build, typecheck, lint, and complete test suite passed. No contributor code changes required after open.
 
 ### Week 3 Progress (Phase III — 2026-07-22) — Complete
 
@@ -365,9 +365,11 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 
 **Maintainer Feedback:**
 
-- Awaiting first review. Review requested from `@atlamors` on 2026-07-26 ([comment](https://github.com/orthogonalhq/nous-core/pull/426#issuecomment-5085569505)).
+- **Approved + merged by `@atlamors` (2026-07-30).** Quote (summary): leaf is focused and ready; after #425 landed he resolved shared provider roster-test conflicts by keeping both Azure OpenAI and DashScope entries — that churn is maintainer-side / related to #414, no contributor changes needed. He also corrected an endpoint comment to distinguish chat-completions vs model discovery; endpoint-preservation remains maintainer-owned under #413. On the updated head, generated-provider check, full build, typecheck, lint, and complete test suite all passed.
+- Copilot left an automated overview comment only (no blocking change requests).
+- Review requested earlier from `@atlamors` on 2026-07-26 ([comment](https://github.com/orthogonalhq/nous-core/pull/426#issuecomment-5085569505)).
 
-**Status:** Awaiting review
+**Status:** Merged
 
 ---
 
@@ -396,6 +398,7 @@ Against `https://dashscope-intl.aliyuncs.com/compatible-mode` with a real intl `
 **From contribution 2 Phase IV (#315):**
 - Course “PR to `main`” instructions must be overridden by the maintainer-assigned integration branch — same lesson as #410.
 - Keep course artifacts (`contribution_readme.md`, `.cursor/skills/`) on `Reports` so they never enter the upstream PR diff.
+- Parallel provider PRs cause expected roster/catalog merge churn; maintainers may resolve it at merge (#414 / #425 collision) without asking the contributor to rebase — call that risk out in the PR body and trust the review.
 
 ### Challenges Overcome
 
